@@ -1,0 +1,111 @@
+import React, { useEffect, useState } from 'react';
+import { View, Image, StyleSheet, FlatList, Text, SafeAreaView, ActivityIndicator, Pressable } from 'react-native';
+import * as MediaLibrary from 'expo-media-library';
+
+export default function App() {
+  const [photos, setPhotos] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [changementRestants, setChangementRestants] = useState(5); // ✅ Limite de 5 changements
+
+  useEffect(() => {
+    (async () => {
+      const { status } = await MediaLibrary.requestPermissionsAsync();
+      if (status !== 'granted') {
+        alert("Permission refusée");
+        return;
+      }
+
+      const allAssets = await MediaLibrary.getAssetsAsync({
+        mediaType: 'photo',
+        first: 1000,
+        sortBy: 'creationTime',
+      });
+
+      const shuffled = allAssets.assets.sort(() => 0.5 - Math.random());
+      const selectedAssets = shuffled.slice(0, 16);
+
+      const assetInfos = await Promise.all(
+        selectedAssets.map((asset) => MediaLibrary.getAssetInfoAsync(asset))
+      );
+
+      const validAssets = assetInfos.filter((info) => info.localUri || info.uri);
+
+      setPhotos(validAssets);
+      setLoading(false);
+    })();
+  }, []);
+
+  const remplacerImage = async (index) => {
+    if (changementRestants <= 0) return;
+
+    const allAssets = await MediaLibrary.getAssetsAsync({
+      mediaType: 'photo',
+      first: 1000,
+      sortBy: 'creationTime',
+    });
+
+    const shuffled = allAssets.assets.sort(() => 0.5 - Math.random());
+    const randomAsset = shuffled[0];
+    const info = await MediaLibrary.getAssetInfoAsync(randomAsset);
+
+    if (info.localUri || info.uri) {
+      const newPhotos = [...photos];
+      newPhotos[index] = info;
+      setPhotos(newPhotos);
+      setChangementRestants(prev => prev - 1); // ✅ Réduction du compteur
+    }
+  };
+
+  const renderItem = ({ item, index }) => (
+    <Pressable onPress={() => remplacerImage(index)}>
+      <Image
+        source={{ uri: item.localUri || item.uri }}
+        style={styles.image}
+      />
+    </Pressable>
+  );
+
+  return (
+    <SafeAreaView style={styles.container}>
+      <Text style={styles.title}>Galerie aléatoire</Text>
+      <Text style={styles.subtitle}>Changements restants : {changementRestants}</Text>
+      {loading ? (
+        <ActivityIndicator size="large" />
+      ) : (
+        <FlatList
+          data={photos}
+          renderItem={renderItem}
+          keyExtractor={(item) => item.id}
+          numColumns={4}
+          contentContainerStyle={styles.grid}
+        />
+      )}
+    </SafeAreaView>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    marginTop: 50,
+    alignItems: 'center',
+  },
+  title: {
+    fontSize: 20,
+    fontWeight: 'bold',
+  },
+  subtitle: {
+    fontSize: 16,
+    marginBottom: 10,
+    color: '#555',
+  },
+  grid: {
+    paddingHorizontal: 10,
+  },
+  image: {
+    width: 80,
+    height: 80,
+    margin: 5,
+    borderRadius: 10,
+  },
+});
