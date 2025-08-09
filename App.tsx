@@ -4,9 +4,14 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import HomeScreen from './screens/HomeScreen';
 import GameScreen from './screens/GameScreen';
 
-const Stack = createNativeStackNavigator();
+export type RootStackParamList = {
+  Home: undefined;
+  Game: { sessionId: number };
+};
 
-export default function App() {
+const Stack = createNativeStackNavigator<RootStackParamList>();
+
+export default function App(): React.JSX.Element {
   return (
     <NavigationContainer>
       <Stack.Navigator initialRouteName="Home">
