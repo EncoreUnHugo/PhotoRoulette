@@ -2,7 +2,6 @@ import React, { useEffect, useState } from 'react';
 import { 
   View, 
   Text, 
-  StyleSheet, 
   Button, 
   Image, 
   FlatList, 
@@ -14,6 +13,7 @@ import {
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import * as MediaLibrary from 'expo-media-library';
 import { RootStackParamList } from '../App';
+import { gameScreenStyles as styles } from './GameScreen.styles';
 
 type GameScreenProps = NativeStackScreenProps<RootStackParamList, 'Game'>;
 
@@ -21,16 +21,23 @@ interface PhotoAsset {
   id: string;
   uri: string;
   localUri?: string;
+  replacementCount: number;
 }
 
 export default function GameScreen({ route, navigation }: GameScreenProps): React.JSX.Element {
   const { sessionId } = route.params;
   const [photos, setPhotos] = useState<PhotoAsset[]>([]);
   const [loading, setLoading] = useState(true);
-  const [changementRestants, setChangementRestants] = useState(10);
+  const [globalReplacements, setGlobalReplacements] = useState(0);
+  const [isSelectionValidated, setIsSelectionValidated] = useState(false);
+  const [availableAssets, setAvailableAssets] = useState<any[]>([]);
+
+  const MAX_PHOTOS = 10;
+  const MAX_REPLACEMENTS_PER_IMAGE = 3;
+  const MAX_GLOBAL_REPLACEMENTS = 30;
 
   useEffect(() => {
-    const loadPhotos = async (): Promise<void> => {
+    const generateRandomSelection = async (): Promise<void> => {
       try {
         const { status } = await MediaLibrary.requestPermissionsAsync();
         if (status !== 'granted') {
@@ -44,8 +51,10 @@ export default function GameScreen({ route, navigation }: GameScreenProps): Reac
           sortBy: 'creationTime',
         });
 
+        setAvailableAssets(allAssets.assets);
+
         const shuffled = allAssets.assets.sort(() => 0.5 - Math.random());
-        const selectedAssets = shuffled.slice(0, 16);
+        const selectedAssets = shuffled.slice(0, MAX_PHOTOS);
 
         const assetInfos = await Promise.all(
           selectedAssets.map((asset) => MediaLibrary.getAssetInfoAsync(asset))
@@ -57,6 +66,7 @@ export default function GameScreen({ route, navigation }: GameScreenProps): Reac
             id: info.id,
             uri: info.uri,
             localUri: info.localUri,
+            replacementCount: 0,
           }));
 
         setPhotos(validAssets);
@@ -67,23 +77,72 @@ export default function GameScreen({ route, navigation }: GameScreenProps): Reac
       }
     };
 
-    loadPhotos();
+    generateRandomSelection();
   }, []);
 
-  const remplacerImage = async (index: number): Promise<void> => {
-    if (changementRestants <= 0) {
-      Alert.alert('Limite atteinte', 'Plus de changements possibles !');
+  const validateSelection = (): void => {
+    setIsSelectionValidated(true);
+    Alert.alert('Sélection validée', 'Vous pouvez maintenant modifier vos photos !');
+  };
+
+  const generateNewSelection = async (): Promise<void> => {
+    try {
+      const shuffled = availableAssets.sort(() => 0.5 - Math.random());
+      const selectedAssets = shuffled.slice(0, MAX_PHOTOS);
+
+      const assetInfos = await Promise.all(
+        selectedAssets.map((asset) => MediaLibrary.getAssetInfoAsync(asset))
+      );
+
+      const validAssets: PhotoAsset[] = assetInfos
+        .filter((info) => info.localUri || info.uri)
+        .map((info) => ({
+          id: info.id,
+          uri: info.uri,
+          localUri: info.localUri,
+          replacementCount: 0,
+        }));
+
+      setPhotos(validAssets);
+      setGlobalReplacements(0); 
+    } catch (error) {
+      Alert.alert('Erreur', 'Impossible de générer une nouvelle sélection');
+    }
+  };
+
+  const replaceImage = async (index: number): Promise<void> => {
+    if (!isSelectionValidated) {
+      Alert.alert('Sélection non validée', 'Vous devez d\'abord valider votre sélection !');
+      return;
+    }
+
+    if (index >= photos.length) return;
+    
+    const currentPhoto = photos[index];
+    
+    if (currentPhoto.replacementCount >= MAX_REPLACEMENTS_PER_IMAGE) {
+      Alert.alert(
+        'Limite atteinte', 
+        `Cette image a déjà été remplacée ${MAX_REPLACEMENTS_PER_IMAGE} fois !`
+      );
+      return;
+    }
+
+    if (globalReplacements >= MAX_GLOBAL_REPLACEMENTS) {
+      Alert.alert('Limite globale atteinte', 'Plus de remplacements possibles !');
       return;
     }
 
     try {
-      const allAssets = await MediaLibrary.getAssetsAsync({
-        mediaType: 'photo',
-        first: 5000,
-        sortBy: 'creationTime',
-      });
+      const usedPhotoIds = photos.map(photo => photo.id);
+      const availableForReplacement = availableAssets.filter(asset => !usedPhotoIds.includes(asset.id));
+      
+      if (availableForReplacement.length === 0) {
+        Alert.alert('Aucune photo', 'Plus de photos disponibles dans votre galerie');
+        return;
+      }
 
-      const shuffled = allAssets.assets.sort(() => 0.5 - Math.random());
+      const shuffled = availableForReplacement.sort(() => 0.5 - Math.random());
       const randomAsset = shuffled[0];
       const info = await MediaLibrary.getAssetInfoAsync(randomAsset);
 
@@ -93,27 +152,45 @@ export default function GameScreen({ route, navigation }: GameScreenProps): Reac
           id: info.id,
           uri: info.uri,
           localUri: info.localUri,
+          replacementCount: currentPhoto.replacementCount + 1,
         };
         setPhotos(newPhotos);
-        setChangementRestants(prev => prev - 1);
+        setGlobalReplacements(prev => prev + 1);
       }
     } catch (error) {
       Alert.alert('Erreur', 'Impossible de remplacer l\'image');
     }
   };
 
-  const goBack = (): void => {
-    navigation.goBack();
-  };
+  
 
-  const renderItem = ({ item, index }: { item: PhotoAsset; index: number }) => (
-    <Pressable onPress={() => remplacerImage(index)}>
-      <Image
-        source={{ uri: item.localUri || item.uri }}
-        style={styles.image}
-      />
-    </Pressable>
-  );
+  const renderItem = ({ item, index }: { item: PhotoAsset; index: number }) => {
+    const canReplace = item.replacementCount < MAX_REPLACEMENTS_PER_IMAGE && isSelectionValidated;
+    
+    return (
+      <Pressable 
+        onPress={() => replaceImage(index)}
+        style={[styles.imageContainer, !canReplace && styles.imageDisabled]}
+      >
+        <Image
+          source={{ uri: item.localUri || item.uri }}
+          style={styles.image}
+        />
+        {isSelectionValidated && (
+          <View style={styles.replacementBadge}>
+            <Text style={styles.replacementText}>
+              {item.replacementCount}/{MAX_REPLACEMENTS_PER_IMAGE}
+            </Text>
+          </View>
+        )}
+        {!isSelectionValidated && (
+          <View style={styles.selectionOverlay}>
+            <Text style={styles.selectionText}>Sélection aléatoire</Text>
+          </View>
+        )}
+      </Pressable>
+    );
+  };
 
   if (loading) {
     return (
@@ -131,93 +208,51 @@ export default function GameScreen({ route, navigation }: GameScreenProps): Reac
       <View style={styles.header}>
         <Text style={styles.title}>PhotoRoulette</Text>
         <Text style={styles.sessionInfo}>Session : {sessionId}</Text>
-        <Text style={styles.subtitle}>
-          Changements restants : {changementRestants}
-        </Text>
-        <Text style={styles.instruction}>
-          Tapez sur une photo pour la remplacer !
-        </Text>
+        
+        {!isSelectionValidated ? (
+          <>
+            <Text style={styles.subtitle}>
+              Sélection aléatoire générée : {photos.length} photos
+            </Text>
+            <Text style={styles.instruction}>
+              Voici une sélection aléatoire de vos photos. Validez-la ou générez-en une nouvelle !
+            </Text>
+            <View style={styles.selectionButtons}>
+              <Pressable style={styles.validateButton} onPress={validateSelection}>
+                <Text style={styles.validateButtonText}>✓ Valider cette sélection</Text>
+              </Pressable>
+              <Pressable style={styles.regenerateButton} onPress={generateNewSelection}>
+                <Text style={styles.regenerateButtonText}>🔄 Nouvelle sélection</Text>
+              </Pressable>
+            </View>
+          </>
+        ) : (
+          <>
+            <Text style={styles.subtitle}>
+              Photos sélectionnées : {photos.length}/{MAX_PHOTOS}
+            </Text>
+            <Text style={styles.replacementInfo}>
+              Remplacements globaux : {globalReplacements}/{MAX_GLOBAL_REPLACEMENTS}
+            </Text>
+            <Text style={styles.instruction}>
+              Tapez sur une photo pour la remplacer (max {MAX_REPLACEMENTS_PER_IMAGE} par image) !
+            </Text>
+          </>
+        )}
       </View>
 
       <FlatList
         data={photos}
         renderItem={renderItem}
         keyExtractor={(item) => item.id}
-        numColumns={4}
+        numColumns={2}
         contentContainerStyle={styles.grid}
         style={styles.photoGrid}
       />
 
       <View style={styles.footer}>
-        <Button title="Retour à l'accueil" onPress={goBack} />
+        <Button title="Retour à l'accueil" onPress={navigation.goBack} />
       </View>
     </SafeAreaView>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#f5f5f5',
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#f5f5f5',
-  },
-  header: {
-    padding: 20,
-    alignItems: 'center',
-    backgroundColor: '#fff',
-    borderBottomWidth: 1,
-    borderBottomColor: '#e0e0e0',
-  },
-  title: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#333',
-  },
-  sessionInfo: {
-    fontSize: 16,
-    color: '#666',
-    marginTop: 5,
-  },
-  subtitle: {
-    fontSize: 18,
-    marginTop: 10,
-    color: '#007AFF',
-    fontWeight: '600',
-  },
-  instruction: {
-    fontSize: 14,
-    color: '#666',
-    marginTop: 5,
-    textAlign: 'center',
-  },
-  loadingText: {
-    fontSize: 16,
-    color: '#666',
-    marginTop: 10,
-  },
-  photoGrid: {
-    flex: 1,
-  },
-  grid: {
-    padding: 10,
-    justifyContent: 'center',
-  },
-  image: {
-    width: 80,
-    height: 80,
-    margin: 5,
-    borderRadius: 10,
-    backgroundColor: '#e0e0e0',
-  },
-  footer: {
-    padding: 20,
-    backgroundColor: '#fff',
-    borderTopWidth: 1,
-    borderTopColor: '#e0e0e0',
-  },
-});
