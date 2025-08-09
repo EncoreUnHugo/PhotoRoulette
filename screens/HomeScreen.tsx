@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { View, Text, Button, TextInput, Alert, StyleSheet } from 'react-native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../App';
@@ -6,12 +6,12 @@ import { RootStackParamList } from '../App';
 type HomeScreenProps = NativeStackScreenProps<RootStackParamList, 'Home'>;
 
 export default function HomeScreen({ navigation }: HomeScreenProps): React.JSX.Element {
-  const [sessionCode, setSessionCode] = useState<string>('');
+  const [sessionCode, setSessionCode] = useState('');
 
   const createSession = async (): Promise<void> => {
     // Simulation de création de session sans Supabase
     const code = Math.random().toString(36).substring(2, 8).toUpperCase();
-    const sessionId = Math.floor(Math.random() * 10000); // ID simulé
+    const sessionId = Math.floor(Math.random() * 10000); 
     
     Alert.alert('Session créée', `Code de session: ${code}`);
     navigation.navigate('Game', { sessionId });
@@ -23,9 +23,8 @@ export default function HomeScreen({ navigation }: HomeScreenProps): React.JSX.E
       return;
     }
 
-    // Simulation de recherche de session sans Supabase
     if (sessionCode.length >= 4) {
-      const sessionId = Math.floor(Math.random() * 10000); // ID simulé
+      const sessionId = Math.floor(Math.random() * 10000); 
       navigation.navigate('Game', { sessionId });
     } else {
       Alert.alert('Erreur', 'Session introuvable');
