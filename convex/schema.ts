@@ -2,14 +2,12 @@ import { defineSchema, defineTable } from "convex/server";
 import { v } from "convex/values";
 
 export default defineSchema({
-  // Table des utilisateurs
   users: defineTable({
     username: v.string(),
   }).index("by_username", ["username"]),
 
-  // Table des rooms de jeu
   rooms: defineTable({
-    code: v.string(), // Code à 6 chiffres
+    code: v.string(),
     hostUserId: v.id("users"),
     status: v.union(v.literal("waiting"), v.literal("playing"), v.literal("finished")),
     maxPlayers: v.number(),

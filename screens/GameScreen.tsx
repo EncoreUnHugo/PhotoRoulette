@@ -24,7 +24,7 @@ interface PhotoAsset {
   replacementCount: number;
 }
 
-export default function GameScreen({ route, navigation }: GameScreenProps): React.JSX.Element {
+export default function GameScreen({ route, navigation }: GameScreenProps) {
   const { sessionId } = route.params;
   const [photos, setPhotos] = useState<PhotoAsset[]>([]);
   const [loading, setLoading] = useState(true);
