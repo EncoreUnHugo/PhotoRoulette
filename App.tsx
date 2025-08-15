@@ -7,7 +7,7 @@ import GameScreen from './screens/GameScreen';
 
 export type RootStackParamList = {
   Home: undefined;
-  Game: { sessionId: number };
+  Game: { sessionId: string };
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
