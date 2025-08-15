@@ -25,3 +25,33 @@ export const createRoom = mutation({
     }
 })
 
+
+
+export const joinRoom = mutation({
+    args: {
+        roomCode: v.string(),
+        userId: v.id("users"),
+    },
+    handler: async (ctx, args) => {
+        const room = await ctx.db
+            .query("rooms")
+            .withIndex("by_code", (q) => q.eq("code", args.roomCode))
+            .first();
+
+        if (!room) throw new Error("Room not found");
+
+        if (room.status !== "waiting") throw new Error("Room is not accepting new players");
+
+        const user = await ctx.db.get(args.userId);
+        if (!user) throw new Error("User not found");
+
+        await ctx.db.insert("roomPlayers", {
+            roomId: room._id,
+            userId: user._id,
+            status: "joined",
+            joinedAt: Date.now(),
+        });
+
+        return room;
+    }
+})

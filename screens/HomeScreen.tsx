@@ -1,20 +1,20 @@
-import { useState } from 'react';
+import { use, useState } from 'react';
 import { View, Text, Button, TextInput, Alert } from 'react-native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../App';
 import { homeScreenStyles as styles } from './HomeScreen.styles';
 import { api } from 'convex/_generated/api';
-import { useQueries, useMutation } from 'convex/react';
+import {useMutation, useQuery } from 'convex/react';
 type HomeScreenProps = NativeStackScreenProps<RootStackParamList, 'Home'>;
 
 export default function HomeScreen({ navigation }: HomeScreenProps): React.JSX.Element {
-  const [sessionCode, setSessionCode] = useState('');
+  const [roomCode, setRoomCode] = useState('');
   const [username, setUsername] = useState('');
-
 
   const createUserMutation = useMutation(api.users.createUser);
   const createRoomMutation = useMutation(api.rooms.createRoom);
-
+  const joinRoomMutation = useMutation(api.rooms.joinRoom);
+  const getUserByUsername = useQuery(api.users.getUserByUsername, { username });
 
   const createUser = async (username : string) => {
     const user = await createUserMutation({username: username});
@@ -32,20 +32,35 @@ export default function HomeScreen({ navigation }: HomeScreenProps): React.JSX.E
     });
     console.log(user.username);
     if(room) {
-      navigation.navigate('Game', { sessionId: room._id.toString() });
+      navigation.navigate('Game', { roomCode: room.code });
       return room;
     }
 
     throw new Error("Failed to create room");
   }
 
+  const getCurrentUser = () => {
+    const user = getUserByUsername;
+    if(user) return user;
+    throw new Error("User not found");
+  }
 
-  const joinSession = async (): Promise<void> => {
-    if (!sessionCode.trim()) {
-      Alert.alert('Erreur', 'Veuillez entrer un code de session');
-      return;
+  const joinRoom = async (roomCode: string) => {
+    const user = getCurrentUser();
+    const room = await joinRoomMutation({
+      roomCode: roomCode,
+      userId: user._id,
+    });
+    console.log("found: ",room);
+    if(room){
+      navigation.navigate('Game', { roomCode: room.code });
+      return room;
     }
-  };
+    throw new Error("Failed to join room, please check the code and try again");
+  }
+
+
+  
 
   return (
     <View style={styles.container}>
@@ -62,10 +77,10 @@ export default function HomeScreen({ navigation }: HomeScreenProps): React.JSX.E
       <TextInput
         style={styles.input}
         placeholder="Code de session"
-        value={sessionCode}
-        onChangeText={setSessionCode}
+        value={roomCode}
+        onChangeText={setRoomCode}
       />
-      <Button title="Rejoindre" onPress={joinSession} />
+      <Button title="Rejoindre" onPress={() => joinRoom(roomCode)} />
     </View>
   );
 }

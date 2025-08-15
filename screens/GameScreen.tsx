@@ -25,7 +25,7 @@ interface PhotoAsset {
 }
 
 export default function GameScreen({ route, navigation }: GameScreenProps) {
-  const { sessionId } = route.params;
+  const { roomCode } = route.params;
   const [photos, setPhotos] = useState<PhotoAsset[]>([]);
   const [loading, setLoading] = useState(true);
   const [globalReplacements, setGlobalReplacements] = useState(0);
@@ -196,7 +196,7 @@ export default function GameScreen({ route, navigation }: GameScreenProps) {
     return (
       <SafeAreaView style={styles.loadingContainer}>
         <Text style={styles.title}>PhotoRoulette</Text>
-        <Text style={styles.sessionInfo}>Session : {sessionId}</Text>
+        <Text style={styles.sessionInfo}>Session : {roomCode}</Text>
         <ActivityIndicator size="large" color="#007AFF" />
         <Text style={styles.loadingText}>Chargement des photos...</Text>
       </SafeAreaView>
@@ -207,7 +207,7 @@ export default function GameScreen({ route, navigation }: GameScreenProps) {
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
         <Text style={styles.title}>PhotoRoulette</Text>
-        <Text style={styles.sessionInfo}>Session : {sessionId}</Text>
+        <Text style={styles.sessionInfo}>Session : {roomCode}</Text>
         
         {!isSelectionValidated ? (
           <>
